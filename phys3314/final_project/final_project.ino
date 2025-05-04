@@ -109,17 +109,117 @@ int16_t tfDist = 0;    // Distance to object in centimeters
 int16_t tfFlux = 0;    // Strength or quality of return signal
 int16_t tfTemp = 0;    // Internal temperature of Lidar sensor chip
 
-// Use the 'getData' function to pass back device data.
+//////////////////////////////////////////////////////////////////////////////
+// BEGIN FINAL PROJECT MODIFICATIONS
+//////////////////////////////////////////////////////////////////////////////
+
+#include <Hashtable.h>
+
+// G A B C D
+/**
+ * TODO: Document.
+ */
+Hashtable<int, int> noteTable;
+
+/**
+ * TODO: Document.
+ */
+bool IS_CALIBRATED = false;
+
+/**
+ * TODO: Document.
+ */
+int NOTE_DURATION = 500;
+
+/**
+ * TODO: Document.
+ */
+int LOGGED_FREQUENCY;
+
+/**
+ * Assume that we start with the lowest note.
+ */
+void calibrate(int tfDist) {
+  switch (noteTable.elements()) {
+    case (0):
+      if (!noteTable.containsKey(tfDist)) {
+        noteTable.put(tfDist, -1); // NO-OP
+      }
+      break;
+    case (1):
+      if (!noteTable.containsKey(tfDist)) {
+        noteTable.put(tfDist, 32); // C
+      }
+      break;
+    case (2):
+      if (!noteTable.containsKey(tfDist)) {
+        noteTable.put(tfDist, 36); // D
+      }
+      break;
+    case (3):
+      if (!noteTable.containsKey(tfDist)) {
+        noteTable.put(tfDist, 49); // G
+      }
+      break;
+    case (4):
+      if (!noteTable.containsKey(tfDist)) {
+        noteTable.put(tfDist, 55); // A
+      }
+      break;
+    case (5):
+      if (!noteTable.containsKey(tfDist)) {
+        noteTable.put(tfDist, 61); // B
+      }
+      break;
+    case (6):
+      IS_CALIBRATED = true;
+      break;
+  }
+  printf("noteTable size: %d\r\n", noteTable.elements());
+  if (IS_CALIBRATED) {
+    printf("system is calibrated\r\n");
+  }
+}
+
+void playNote(int tfDist) {
+  int* frequency = noteTable.get(tfDist);
+  if ((frequency != nullptr) && (*frequency != -1)) {
+    LOGGED_FREQUENCY = *frequency;
+    for (int t=0; t < NOTE_DURATION; t++) {
+      analogWrite(DAC1, 255);
+      delayMicroseconds((*frequency)*10);
+      analogWrite(DAC1, 0);
+      delayMicroseconds((*frequency)*10);
+    }
+  }
+  else {
+      analogWrite(DAC1, 255);
+      delayMicroseconds(LOGGED_FREQUENCY*10);
+      analogWrite(DAC1, 0);
+      delayMicroseconds(LOGGED_FREQUENCY*10);
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// END FINAL PROJECT MODIFICATIONS
+//////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Entry-point / main loop. Use the 'getData' function to pass back device
+ * data.
+ */
 void loop()
 {
     delay(50);   // Loop delay to match the 20Hz data frame rate
 
-    if( tfmP.getData( tfDist, tfFlux, tfTemp)) // Get data from the device.
+    if(tfmP.getData( tfDist, tfFlux, tfTemp)) // Get data from the device.
     {
-      printf( "Dist:%04icm ", tfDist);   // display distance,
-      printf( "Flux:%05i ",   tfFlux);   // display signal strength/quality,
-      printf( "Temp:%2i%s",  tfTemp, "C");   // display temperature,
-      printf( "\r\n");                   // end-of-line.
+      // First, calibrate the system.
+      if (!IS_CALIBRATED) {
+        calibrate(tfDist);
+      } else {
+        playNote(tfDist);
+      }
     }
     else                  // If the command fails...
     {
