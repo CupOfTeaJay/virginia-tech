@@ -113,7 +113,7 @@ int16_t tfTemp = 0;    // Internal temperature of Lidar sensor chip
 // BEGIN FINAL PROJECT MODIFICATIONS
 //////////////////////////////////////////////////////////////////////////////
 
-#include <Hashtable.h>
+#include "Hashtable.h"
 
 // G A B C D
 /**
@@ -129,7 +129,7 @@ bool IS_CALIBRATED = false;
 /**
  * TODO: Document.
  */
-int NOTE_DURATION = 500;
+int NOTE_DURATION = 250;
 
 /**
  * TODO: Document.
@@ -137,43 +137,69 @@ int NOTE_DURATION = 500;
 int LOGGED_FREQUENCY;
 
 /**
+* TODO: Document.
+*/
+int CONSISTENCY = 0;
+
+/**
+ * TODO: Document.
+ */
+int PREV_DIST = -1;
+
+/**
  * Assume that we start with the lowest note.
  */
-void calibrate(int tfDist) {
-  switch (noteTable.elements()) {
-    case (0):
-      if (!noteTable.containsKey(tfDist)) {
-        noteTable.put(tfDist, -1); // NO-OP
-      }
-      break;
-    case (1):
-      if (!noteTable.containsKey(tfDist)) {
-        noteTable.put(tfDist, 32); // C
-      }
-      break;
-    case (2):
-      if (!noteTable.containsKey(tfDist)) {
-        noteTable.put(tfDist, 36); // D
-      }
-      break;
-    case (3):
-      if (!noteTable.containsKey(tfDist)) {
-        noteTable.put(tfDist, 49); // G
-      }
-      break;
-    case (4):
-      if (!noteTable.containsKey(tfDist)) {
-        noteTable.put(tfDist, 55); // A
-      }
-      break;
-    case (5):
-      if (!noteTable.containsKey(tfDist)) {
-        noteTable.put(tfDist, 61); // B
-      }
-      break;
-    case (6):
-      IS_CALIBRATED = true;
-      break;
+void calibrate(int tfDist, int tfFlux) {
+  if (tfFlux < 8500) {
+    printf("%d, %d\r\n", PREV_DIST, CONSISTENCY);
+    switch (noteTable.elements()) {
+      case (0):
+        if (!noteTable.containsKey(tfDist) && CONSISTENCY == 10) {
+          noteTable.put(tfDist, -1); // NO-OP
+          CONSISTENCY = 0;
+        }
+        break;
+      case (1):
+        if (!noteTable.containsKey(tfDist) && CONSISTENCY == 10) {
+          noteTable.put(tfDist, 32); // C
+          CONSISTENCY = 0;
+        }
+        break;
+      case (2):
+        if (!noteTable.containsKey(tfDist) && CONSISTENCY == 10) {
+          noteTable.put(tfDist, 36); // D
+          CONSISTENCY = 0;
+        }
+        break;
+      case (3):
+        if (!noteTable.containsKey(tfDist) && CONSISTENCY == 10) {
+          noteTable.put(tfDist, 49); // G
+          CONSISTENCY = 0;
+        }
+        break;
+      case (4):
+        if (!noteTable.containsKey(tfDist) && CONSISTENCY == 10) {
+          noteTable.put(tfDist, 55); // A
+          CONSISTENCY = 0;
+        }
+        break;
+      case (5):
+        if (!noteTable.containsKey(tfDist) && CONSISTENCY == 10) {
+          noteTable.put(tfDist, 61); // B
+          CONSISTENCY = 0;
+        }
+        break;
+      case (6):
+        IS_CALIBRATED = true;
+        break;
+    }
+    if (PREV_DIST == -1 || tfDist == PREV_DIST) {
+      CONSISTENCY += 1;
+    }
+    if (CONSISTENCY > 10) {
+      CONSISTENCY = 0;
+    }
+    PREV_DIST = tfDist;
   }
   printf("noteTable size: %d\r\n", noteTable.elements());
   if (IS_CALIBRATED) {
@@ -181,22 +207,18 @@ void calibrate(int tfDist) {
   }
 }
 
-void playNote(int tfDist) {
-  int* frequency = noteTable.get(tfDist);
-  if ((frequency != nullptr) && (*frequency != -1)) {
-    LOGGED_FREQUENCY = *frequency;
-    for (int t=0; t < NOTE_DURATION; t++) {
-      analogWrite(DAC1, 255);
-      delayMicroseconds((*frequency)*10);
-      analogWrite(DAC1, 0);
-      delayMicroseconds((*frequency)*10);
+void playNote(int tfDist, int tfFlux) {
+  if (tfFlux < 8500) {
+    int* frequency = noteTable.get(tfDist);
+    if ((frequency != nullptr) && (*frequency != -1)) {
+      LOGGED_FREQUENCY = *frequency;
+      for (int t=0; t < NOTE_DURATION; t++) {
+        analogWrite(DAC1, 255);
+        delayMicroseconds((*frequency)*10);
+        analogWrite(DAC1, 0);
+        delayMicroseconds((*frequency)*10);
+      }
     }
-  }
-  else {
-      analogWrite(DAC1, 255);
-      delayMicroseconds(LOGGED_FREQUENCY*10);
-      analogWrite(DAC1, 0);
-      delayMicroseconds(LOGGED_FREQUENCY*10);
   }
 }
 
@@ -216,9 +238,10 @@ void loop()
     {
       // First, calibrate the system.
       if (!IS_CALIBRATED) {
-        calibrate(tfDist);
+        calibrate(tfDist, tfFlux);
+        printf("%d\r\n", tfFlux);
       } else {
-        playNote(tfDist);
+        playNote(tfDist, tfFlux);
       }
     }
     else                  // If the command fails...
